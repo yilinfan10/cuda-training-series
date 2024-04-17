@@ -2,12 +2,14 @@
 
 __global__ void hello(){
 
-  printf("Hello from block: %u, thread: %u\n", FIXME);
+  printf("Hello from block: %u, thread: %u\n", blockIdx.x, threadIdx.x);
 }
 
 int main(){
+  constexpr int kBlockSize = 8;
+  constexpr int kNumBlocks = 2;
 
-  hello<<<FIXME>>>();
+  hello<<<kNumBlocks, kBlockSize>>>();
   cudaDeviceSynchronize();
 }
 
