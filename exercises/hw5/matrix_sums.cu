@@ -38,14 +38,30 @@ const int block_size = 256;  // CUDA maximum is 1024
      if (tid == 0) atomicAdd(out, sdata[0]);
   }
 // matrix row-sum kernel
-__global__ void row_sums(const float *A, float *sums, size_t ds){
+  __global__ void row_sums(const float* A, float* sums, size_t ds) {
+    int row_step = (blockDim.x * gridDim.x) / warpSize;
+    int col_step = warpSize;
+    unsigned mask = 0xFFFFFFFFU;
 
-  int idx = threadIdx.x+blockDim.x*blockIdx.x; // create typical 1D thread index from built-in variables
-  for (int row = 0; row < ds; row++) {
-    //atomicAdd(&sums[row], A[row * ds + idx]);
-    reduce_a(&A[row * ds], &sums[row]);
+    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    int col = idx % col_step;
+    int lane = col;
+    for (int row = idx / col_step; row < ds; row += row_step) {
+      int row_offset = row * ds;
+      float val = 0.0f;
+      col = lane;
+      while (col < ds) {
+        val += A[row_offset + col];
+        col += col_step;
+      }
+      for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
+        val += __shfl_down_sync(mask, val, offset);
+      }
+      if (lane == 0) {
+        sums[row] = val;
+      }
+    }
   }
-}
 // matrix column-sum kernel
 __global__ void column_sums(const float *A, float *sums, size_t ds){
 
